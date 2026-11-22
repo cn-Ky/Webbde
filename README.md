@@ -1,10 +1,14 @@
-# Webbde 0.2
-Web sitesi güvenlik, mevzuat, yapay zekâ görünürlüğü ve kalite tarayıcısı. Rust + Tauri v2.
+# Webbde 0.3
+Rust + Tauri v2 web sitesi tarayıcısı (güvenlik, mevzuat, YZ görünürlüğü, kalite). Otomatik güncellemeli.
 
-Yerelde: `cargo install tauri-cli --version "^2"` → `cargo tauri dev`.
-Paket: `.github/workflows/build.yml` (GitHub Actions) üç işletim sistemi için derler.
+## Sürüm yayınlama
+1. `src-tauri/tauri.conf.json` içindeki `version` değerini artırın (ör. 0.3.1), commit edin.
+2. GitHub → Actions → "Webbde sürüm yayınla" → Run workflow.
+3. Bitince Releases bölümünde kurulum dosyaları ve `latest.json` oluşur. Yüklü uygulamalar açılışta güncellemeyi sunar.
 
-## Kapsam (pasif)
-Çok sayfalı nazik tarama (robots.txt'e uyar), TLS, başlıklar, çerezler, form ve DOM-XSS yüzeyi, eski JS kütüphaneleri,
-izleyici envanteri, yasal sayfaların içerik kontrolü, SPF/DMARC (Cloudflare DoH), YZ bot erişimi ve "YZ gözüyle" görünüm.
-Saldırı verisi göndermez; .env/.git gibi hassas yolları yoklamaz. Mevzuat kontrolleri işaret arar, hukuki görüş değildir.
+## Bir kerelik kurulum (repo ayarları → Secrets and variables → Actions)
+`npx @tauri-apps/cli signer generate -w ~/.tauri/webbde.key` ile anahtar üretin; şu üç secret'ı ekleyin:
+- `TAURI_SIGNING_PRIVATE_KEY`: webbde.key dosyasının içeriği
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: anahtar parolası
+- `UPDATER_PUBKEY`: webbde.key.pub dosyasının içeriği
+Depo herkese açık (public) olmalı. Özel anahtarı kaybetmeyin.

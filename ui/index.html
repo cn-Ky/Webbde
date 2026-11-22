@@ -107,6 +107,9 @@ td.m{font-family:var(--mono);font-size:12px}
 .view-box{font:13px/1.6 var(--mono);background:var(--paper);border:1px solid var(--line);padding:14px;white-space:pre-wrap;max-height:260px;overflow:auto}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:900px){.cols,.sum{grid-template-columns:1fr}}
+#upd{position:fixed;right:20px;bottom:20px;z-index:50;background:var(--hi);color:var(--navy);padding:14px 18px;box-shadow:6px 6px 0 var(--navy);display:none;max-width:340px;font-weight:600}
+#upd.on{display:block}#upd button{margin-top:10px;border:0;background:var(--navy);color:#fff;font:700 15px var(--disp);padding:8px 16px;cursor:pointer}
+.lnk{all:unset;cursor:pointer;text-decoration:underline;font-size:13px}.lnk:focus-visible{outline:3px solid var(--hi)}
 @media(max-width:900px){#rep.on{grid-template-columns:1fr}aside{position:static;height:auto}main{padding:24px 18px}.hero h1{font-size:25vw}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
@@ -123,7 +126,7 @@ td.m{font-family:var(--mono);font-size:12px}
       <label><input type="radio" name="d" value="25"><span>Derin: 25 sayfa</span></label></div>
     <label class="ok-box"><input type="checkbox" id="perm"> Bu siteyi tarama iznim var (sahibiyim ya da yazılı izin aldım). Çok sayfalı taramada gereklidir.</label>
     <div id="err" role="alert"></div>
-    <p class="note">Webbde pasif çalışır: siteye normal bir ziyaretçi gibi birkaç istek yapar, saldırı verisi göndermez. Yalnızca sahibi olduğunuz ya da izin aldığınız siteleri tarayın. Sonuçlar hukuki görüş değildir.</p>
+    <p class="note">Webbde pasif çalışır: siteye normal bir ziyaretçi gibi birkaç istek yapar, saldırı verisi göndermez. Yalnızca sahibi olduğunuz ya da izin aldığınız siteleri tarayın. Sonuçlar hukuki görüş değildir. <button class="lnk" id="chk" type="button">Güncellemeleri denetle</button></p>
   </div>
 </section>
 
@@ -143,6 +146,7 @@ td.m{font-family:var(--mono);font-size:12px}
     <div class="tabs" role="tablist" id="tabs"></div><div id="pane"></div></main>
 </section>
 
+<div id="upd" role="status"></div>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -221,4 +225,19 @@ function md(){
 async function cp(btn,txt,label){await navigator.clipboard.writeText(txt);btn.textContent='Kopyalandı';setTimeout(()=>btn.textContent=label,1800)}
 $('#copy').onclick=e=>cp(e.target,md(),'Markdown kopyala');
 $('#cjson').onclick=e=>cp(e.target,JSON.stringify(R,null,2),'JSON kopyala');
+async function checkUpdate(manual){
+  const box=$('#upd'),say=(h)=>{box.innerHTML=h;box.classList.add('on')};
+  try{
+    const u=await window.__TAURI__.updater.check();
+    if(!u){if(manual){say('Webbde güncel.');setTimeout(()=>box.classList.remove('on'),3000)}return}
+    say(`Yeni sürüm ${esc(u.version)} hazır.<br><button id="doupd">Güncelle ve yeniden başlat</button>`);
+    $('#doupd').onclick=async()=>{
+      let tot=0,got=0;say('Güncelleme indiriliyor…');
+      await u.downloadAndInstall(e=>{if(e.event==='Started')tot=e.data.contentLength||0;if(e.event==='Progress'){got+=e.data.chunkLength;if(tot)say(`İndiriliyor: %${Math.round(got/tot*100)}`)}if(e.event==='Finished')say('Kuruluyor…')});
+      await window.__TAURI__.process.relaunch();
+    };
+  }catch(err){if(manual){say('Güncelleme denetlenemedi: '+esc(err));setTimeout(()=>box.classList.remove('on'),5000)}}
+}
+$('#chk').onclick=()=>checkUpdate(true);
+setTimeout(()=>checkUpdate(false),2500);
 </script></body></html>

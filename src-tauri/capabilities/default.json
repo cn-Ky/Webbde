@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Webbde ana pencere izinleri",
+  "windows": ["main"],
+  "permissions": ["core:default", "updater:default", "process:allow-restart"]
+}

@@ -1,6 +1,6 @@
 [package]
 name = "webbde"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [build-dependencies]
@@ -14,3 +14,5 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 scraper = "0.20"
 tokio = { version = "1", features = ["time"] }
 x509-parser = "0.16"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

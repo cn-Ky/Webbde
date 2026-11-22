@@ -9,5 +9,8 @@ async fn scan(app: tauri::AppHandle, url: String, depth: usize) -> Result<scanne
 }
 
 fn main() {
-    tauri::Builder::default().invoke_handler(tauri::generate_handler![scan]).run(tauri::generate_context!()).expect("Webbde başlatılamadı");
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![scan]).run(tauri::generate_context!()).expect("Webbde başlatılamadı");
 }
