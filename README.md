@@ -1,12 +1,10 @@
-# Webbde
-Web sitesi güvenlik, mevzuat ve yapay zekâ görünürlüğü tarayıcısı. Rust + Tauri v2.
+# Webbde 0.2
+Web sitesi güvenlik, mevzuat, yapay zekâ görünürlüğü ve kalite tarayıcısı. Rust + Tauri v2.
 
-## Çalıştırma
-1. Rust: https://rustup.rs  — Linux’ta ek olarak `libwebkit2gtk-4.1-dev build-essential libssl-dev`.
-2. `cargo install tauri-cli --version "^2"`
-3. `cargo tauri dev`        (geliştirme)
-4. `cargo tauri icon src-tauri/icons/icon.png` ardından `cargo tauri build`  (.dmg / .msi / .deb / .AppImage)
+Yerelde: `cargo install tauri-cli --version "^2"` → `cargo tauri dev`.
+Paket: `.github/workflows/build.yml` (GitHub Actions) üç işletim sistemi için derler.
 
-## Kapsam
-Pasif analiz: 1 sayfa isteği + robots.txt, llms.txt, sitemap.xml. Aktif XSS payload’ı göndermez.
-Mevzuat kontrolleri işaret arar (KVKK, çerez, mesafeli satış); hukuki görüş değildir.
+## Kapsam (pasif)
+Çok sayfalı nazik tarama (robots.txt'e uyar), TLS, başlıklar, çerezler, form ve DOM-XSS yüzeyi, eski JS kütüphaneleri,
+izleyici envanteri, yasal sayfaların içerik kontrolü, SPF/DMARC (Cloudflare DoH), YZ bot erişimi ve "YZ gözüyle" görünüm.
+Saldırı verisi göndermez; .env/.git gibi hassas yolları yoklamaz. Mevzuat kontrolleri işaret arar, hukuki görüş değildir.

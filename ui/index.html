@@ -79,6 +79,34 @@ main{padding:30px 40px 60px;max-width:900px}
 .how ol{padding-left:22px;max-width:70ch}.how li{margin:7px 0;padding-left:4px}
 code{font:13px var(--mono);background:var(--paper);padding:2px 6px;border:1px solid var(--line);border-radius:3px;word-break:break-word}
 .empty{padding:40px;text-align:center;color:var(--mut)}
+
+.opts{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.opts label{cursor:pointer}.opts input{position:absolute;opacity:0}
+.opts span{display:block;padding:8px 16px;border:2px solid rgba(255,255,255,.5);font:700 15px var(--disp)}
+.opts input:checked+span{background:var(--hi);color:var(--navy);border-color:var(--hi)}
+.opts input:focus-visible+span{outline:3px solid var(--hi);outline-offset:2px}
+.ok-box{display:flex;gap:10px;margin-top:16px;font-size:13px;max-width:60ch;align-items:flex-start;cursor:pointer}
+.scan ul{max-height:46vh;overflow:auto}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.sum div{background:var(--card);border:1px solid var(--line);padding:12px 16px;border-top:5px solid var(--c)}
+.sum b{font:700 34px/1 var(--disp);display:block}.sum span{font-size:13px;color:var(--mut)}
+.prio{background:var(--navy);color:#fff;padding:16px 22px;margin-bottom:18px}
+.prio h3{font:700 18px var(--disp);color:var(--hi);margin-bottom:6px}.prio ol{padding-left:22px}.prio li{margin:4px 0}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--navy);margin-bottom:16px;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:10px 16px;font:700 16px var(--disp);color:var(--mut);cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--navy);color:#fff}
+.refs{font:12px var(--mono);color:var(--mut);margin-top:14px}
+.panel{background:var(--card);border:1px solid var(--line);padding:20px 24px;margin-bottom:14px}
+.panel h4{font:700 19px var(--disp);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font:700 14px var(--disp);color:var(--mut);padding:6px 10px 6px 0;border-bottom:2px solid var(--line)}
+td{padding:7px 10px 7px 0;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+td.m{font-family:var(--mono);font-size:12px}
+.tag{display:inline-block;font:700 13px var(--disp);padding:0 8px;border:2px solid var(--c);color:var(--c);transform:rotate(-2deg)}
+.tag.ok{--c:var(--ok)}.tag.no{--c:var(--bad)}.tag.wa{--c:var(--warn)}
+.view-box{font:13px/1.6 var(--mono);background:var(--paper);border:1px solid var(--line);padding:14px;white-space:pre-wrap;max-height:260px;overflow:auto}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.cols,.sum{grid-template-columns:1fr}}
 @media(max-width:900px){#rep.on{grid-template-columns:1fr}aside{position:static;height:auto}main{padding:24px 18px}.hero h1{font-size:25vw}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
@@ -89,6 +117,11 @@ code{font:13px var(--mono);background:var(--paper);padding:2px 6px;border:1px so
     <h1>Siteni<span>mühürle.</span></h1>
     <p>Adresi yapıştır. Güvenlik açıklarını, mevzuata uyumu ve yapay zekâya görünürlüğü tek taramada çıkaralım; her eksiğin çözümünü adım adım yazalım.</p>
     <form class="bar" id="form"><input id="u" placeholder="ornek.com" autocomplete="off" spellcheck="false" aria-label="Site adresi" autofocus><button>Tara</button></form>
+    <div class="opts" role="radiogroup" aria-label="Tarama derinliği">
+      <label><input type="radio" name="d" value="1"><span>Hızlı: 1 sayfa</span></label>
+      <label><input type="radio" name="d" value="10" checked><span>Standart: 10 sayfa</span></label>
+      <label><input type="radio" name="d" value="25"><span>Derin: 25 sayfa</span></label></div>
+    <label class="ok-box"><input type="checkbox" id="perm"> Bu siteyi tarama iznim var (sahibiyim ya da yazılı izin aldım). Çok sayfalı taramada gereklidir.</label>
     <div id="err" role="alert"></div>
     <p class="note">Webbde pasif çalışır: siteye normal bir ziyaretçi gibi birkaç istek yapar, saldırı verisi göndermez. Yalnızca sahibi olduğunuz ya da izin aldığınız siteleri tarayın. Sonuçlar hukuki görüş değildir.</p>
   </div>
@@ -103,56 +136,89 @@ code{font:13px var(--mono);background:var(--paper);padding:2px 6px;border:1px so
     <h2 id="rh"></h2><small id="rm"></small>
     <div class="grade"><div class="seal" id="seal"></div><div><b id="rt"></b><span>genel uyum puanı</span></div></div>
     <div id="gs"></div>
-    <div class="act"><button id="copy">Raporu kopyala</button><button id="again">Yeni tarama</button></div>
+    <div class="act"><button id="copy">Markdown kopyala</button><button id="cjson">JSON kopyala</button></div><div class="act"><button id="again">Yeni tarama</button></div>
   </aside>
-  <main><div class="top"><h3 id="lt">Tüm bulgular</h3><label><input type="checkbox" id="only" checked> Yalnızca sorunları göster</label></div><div id="list"></div></main>
+  <main>
+    <div class="sum" id="sum"></div><div class="prio" id="prio"></div>
+    <div class="tabs" role="tablist" id="tabs"></div><div id="pane"></div></main>
 </section>
 
 <script>
 const $=s=>document.querySelector(s);
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rich=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>');
-const CATS=[['sec','Güvenlik','XSS, başlıklar, çerezler'],['legal','Mevzuat','KVKK, çerez, e-ticaret'],['ai','Yapay zekâ','Botlar, yapı, okunabilirlik']];
+const CATS=[['sec','Güvenlik','XSS, başlıklar, TLS, DNS'],['legal','Mevzuat','KVKK, çerez, e-ticaret'],['ai','Yapay zekâ','Botlar, yapı, okunabilirlik'],['qual','Kalite','Hız, erişilebilirlik']];
 const ST={pass:'Uygun',warn:'İnceleyin',fail:'Eksik'},SEV={high:'yüksek',med:'orta',low:'düşük'};
 const col=v=>v>=80?'#5be3b3':v>=50?'#f4c95d':'#ff6b8b';
 const grade=v=>v>=90?'A':v>=75?'B':v>=60?'C':v>=40?'D':'F';
-const STEPS=['Siteye bağlanılıyor','Güvenlik başlıkları okunuyor','HTML yapısı çözümleniyor','Mevzuat işaretleri aranıyor','robots.txt ve llms.txt bakılıyor','Rehber hazırlanıyor'];
-let R=null,cat='all';
+const TABS=[['f','Bulgular'],['a','Yapay zekâ gözüyle'],['p','Sayfalar'],['t','Teknik detay']];
+let R=null,cat='all',tab='f';
 function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===id))}
 $('#form').onsubmit=async e=>{
   e.preventDefault();const url=$('#u').value.trim();if(!url)return;
-  $('#err').textContent='';$('#bt').textContent=url.replace(/^https?:\/\//,'');
-  $('#steps').innerHTML=STEPS.map(s=>`<li><b></b>${s}</li>`).join('');show('busy');
-  const li=[...document.querySelectorAll('#steps li')];let i=0;
-  const tick=()=>{li.forEach((l,k)=>{l.className=k<i?'done':k===i?'on':'';l.firstChild.textContent=k<i?'✓':''});if(i<li.length-1)i++};
-  tick();const iv=setInterval(tick,700);
-  try{R=await window.__TAURI__.core.invoke('scan',{url});cat='all';render();show('rep')}
-  catch(x){show('home');$('#err').textContent=String(x)}finally{clearInterval(iv)}
+  const depth=+document.querySelector('input[name=d]:checked').value;
+  if(depth>1&&!$('#perm').checked){$('#err').textContent='Çok sayfalı tarama için site üzerinde izniniz olduğunu onaylayın ya da Hızlı modu seçin.';return}
+  $('#err').textContent='';$('#bt').textContent=url.replace(/^https?:\/\//,'');$('#steps').innerHTML='';show('busy');
+  const log=m=>{const u=$('#steps');u.querySelectorAll('.on').forEach(l=>{l.className='done';l.firstChild.textContent='✓'});
+    const li=document.createElement('li');li.className='on';li.innerHTML='<b></b><span></span>';li.lastChild.textContent=m;u.appendChild(li);u.scrollTop=1e6};
+  const un=await window.__TAURI__.event.listen('progress',ev=>log(ev.payload));
+  try{R=await window.__TAURI__.core.invoke('scan',{url,depth});cat='all';tab='f';render();show('rep')}
+  catch(x){show('home');$('#err').textContent=String(x)}finally{un()}
 };
 $('#again').onclick=()=>{show('home');$('#u').select()};
-$('#only').onchange=list;
 function render(){
   $('#rh').textContent=new URL(R.url).host;
-  $('#rm').textContent=`HTTP ${R.status}, ${R.ms} ms, ${R.findings.length} kontrol`;
-  const s=$('#seal');s.textContent=grade(R.total);s.style.setProperty('--c',col(R.total));
-  $('#rt').textContent=R.total+'/100';
+  $('#rm').textContent=`HTTP ${R.status}, ${R.ms} ms, ${R.pages.length} sayfa, ${R.findings.length} kontrol`;
+  const s=$('#seal');s.textContent=grade(R.total);s.style.setProperty('--c',col(R.total));$('#rt').textContent=R.total+'/100';
   $('#gs').innerHTML=CATS.map(([k,n,d],i)=>{const v=R.scores[i];
     return `<button class="g" data-c="${k}" aria-pressed="false"><svg viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="52"/><circle class="v" cx="60" cy="60" r="52" style="--v:${v*3.267};stroke:${col(v)}"/></svg><span><strong>${n} ${v}</strong><em>${d}</em></span></button>`}).join('');
-  document.querySelectorAll('.g').forEach(b=>b.onclick=()=>{cat=cat===b.dataset.c?'all':b.dataset.c;list()});
-  list();
+  document.querySelectorAll('.g').forEach(b=>b.onclick=()=>{cat=cat===b.dataset.c?'all':b.dataset.c;tab='f';pane()});
+  const c=k=>R.findings.filter(x=>x.status===k).length;
+  $('#sum').innerHTML=[['fail','Eksik','var(--bad)'],['warn','İncelenecek','var(--warn)'],['pass','Uygun','var(--ok)']].map(([k,n,v])=>`<div style="--c:${v}"><b>${c(k)}</b><span>${n}</span></div>`).join('');
+  const sv={high:0,med:1,low:2},top=R.findings.filter(x=>x.status==='fail').sort((a,b)=>sv[a.sev]-sv[b.sev]).slice(0,5);
+  $('#prio').innerHTML=top.length?`<h3>Önce bunları düzeltin</h3><ol>${top.map(x=>`<li>${esc(x.title)}</li>`).join('')}</ol>`:'<h3>Kritik eksik görünmüyor.</h3>';
+  pane();
 }
-function list(){
+function pane(){
   document.querySelectorAll('.g').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===cat));
-  const n=CATS.find(c=>c[0]===cat);$('#lt').textContent=n?n[1]+' bulguları':'Tüm bulgular';
-  const o={fail:0,warn:1,pass:2},sv={high:0,med:1,low:2};
-  let f=R.findings.filter(x=>(cat==='all'||x.cat===cat)&&(!$('#only').checked||x.status!=='pass'));
-  f.sort((a,b)=>o[a.status]-o[b.status]||sv[a.sev]-sv[b.sev]);
-  $('#list').innerHTML=f.length?f.map((x,i)=>`<div class="f ${x.status}"><button aria-expanded="false"><h4>${esc(x.title)}${x.detail&&x.status!=='pass'?`<small>${rich(x.detail)}</small>`:''}</h4><span class="sev">${SEV[x.sev]}</span><span class="pill">${ST[x.status]}</span></button>${x.steps.length?`<div class="how"><h5>Nasıl düzeltilir</h5><ol>${x.steps.map(s=>`<li>${rich(s)}</li>`).join('')}</ol></div>`:''}</div>`).join('')
-   :'<div class="empty">Bu bölümde sorun görünmüyor. Mühür temiz.</div>';
-  document.querySelectorAll('.f>button').forEach(b=>b.onclick=()=>{const p=b.parentElement;p.classList.toggle('open');b.setAttribute('aria-expanded',p.classList.contains('open'))});
+  $('#tabs').innerHTML=TABS.map(([k,n])=>`<button role="tab" data-t="${k}" aria-selected="${k===tab}">${n}</button>`).join('');
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;pane()});
+  $('#pane').innerHTML={f:findings,a:aiPane,p:pagesPane,t:techPane}[tab]();
+  if(tab==='f'){$('#only').onchange=()=>pane();document.querySelectorAll('.f>button').forEach(b=>b.onclick=()=>{const p=b.parentElement;p.classList.toggle('open');b.setAttribute('aria-expanded',p.classList.contains('open'))})}
 }
-$('#copy').onclick=async()=>{
-  let m=`# Webbde raporu: ${R.url}\nGenel puan: ${R.total}/100\n\n`;
-  for(const x of R.findings.filter(x=>x.status!=='pass')){m+=`## ${x.title} (${ST[x.status]}, ${SEV[x.sev]})\n${x.detail}\n`+x.steps.map((s,i)=>`${i+1}. ${s}`).join('\n')+'\n\n'}
-  await navigator.clipboard.writeText(m);$('#copy').textContent='Kopyalandı';setTimeout(()=>$('#copy').textContent='Raporu kopyala',1800)};
+const kv=(rows,h=['','']) =>`<table><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'m':''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+function findings(){
+  const o={fail:0,warn:1,pass:2},sv={high:0,med:1,low:2},only=$('#only')?$('#only').checked:true;
+  const n=CATS.find(c=>c[0]===cat);
+  const f=R.findings.filter(x=>(cat==='all'||x.cat===cat)&&(!only||x.status!=='pass')).sort((a,b)=>o[a.status]-o[b.status]||sv[a.sev]-sv[b.sev]);
+  return `<div class="top"><h3>${n?n[1]+' bulguları':'Tüm bulgular'}</h3><label><input type="checkbox" id="only" ${only?'checked':''}> Yalnızca sorunları göster</label></div>`+
+  (f.length?f.map(x=>`<div class="f ${x.status}"><button aria-expanded="false"><h4>${esc(x.title)}${x.detail&&x.status!=='pass'?`<small>${rich(x.detail)}</small>`:''}</h4><span class="sev">${SEV[x.sev]}</span><span class="pill">${ST[x.status]}</span></button>${x.steps.length?`<div class="how"><h5>Nasıl düzeltilir</h5><ol>${x.steps.map(s=>`<li>${rich(s)}</li>`).join('')}</ol><div class="refs">${esc(x.refs)}</div></div>`:''}</div>`).join(''):'<div class="empty">Bu bölümde sorun görünmüyor. Mühür temiz.</div>');
+}
+function aiPane(){
+  const a=R.ai_view;
+  return `<div class="panel"><h4>Yapay zekâ botları bu siteye girebiliyor mu?</h4><table><tbody>${R.bots.map(([b,ok])=>`<tr><td class="m">${esc(b)}</td><td><span class="tag ${ok?'ok':'no'}">${ok?'Açık':'Engelli'}</span></td></tr>`).join('')}</tbody></table></div>
+  <div class="cols"><div class="panel"><h4>Başlık ve özet</h4><p><b>${esc(a.title)||'(başlık yok)'}</b></p><p style="color:var(--mut);margin-top:6px">${esc(a.description)||'(meta açıklama yok)'}</p>
+  <p class="refs">${a.words} kelime, ${a.links} bağlantı, ${a.images} görsel${a.schema.length?'<br>Şema: '+esc(a.schema.join(', ')):'<br>Yapılandırılmış veri yok'}</p></div>
+  <div class="panel"><h4>Başlık iskeleti</h4><div class="view-box">${a.outline.length?a.outline.map(esc).join('\n'):'Başlık bulunamadı.'}</div></div></div>
+  <div class="panel"><h4>Bot ilk istekte bu metni görüyor</h4><div class="view-box">${esc(a.text)||'Boş. İçerik JavaScript ile sonradan yükleniyor olabilir.'}</div></div>`;
+}
+function pagesPane(){
+  return `<div class="panel"><h4>${R.pages.length} sayfa tarandı</h4><table><thead><tr><th>Adres</th><th>Durum</th><th>ms</th><th>KB</th><th>Kelime</th><th>Sorunlar</th></tr></thead><tbody>${R.pages.map(p=>`<tr><td class="m">${esc(new URL(p.url).pathname||'/')}<br><span style="color:var(--mut)">${esc(p.title)}</span></td><td><span class="tag ${p.status>=400||!p.status?'no':'ok'}">${p.status||'yok'}</span></td><td>${p.ms}</td><td>${Math.round(p.bytes/1024)}</td><td>${p.words}</td><td>${p.issues.map(esc).join(', ')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function techPane(){
+  const t=R.tls;
+  return `<div class="cols"><div class="panel"><h4>TLS sertifikası</h4>${t?kv([['Veren',t.issuer],['Konu',t.subject],['Bitiş',t.expires],['Kalan gün',t.days_left]]):'<p>HTTPS yok ya da sertifika okunamadı.</p>'}</div>
+  <div class="panel"><h4>E-posta DNS</h4>${R.dns.length?kv(R.dns):'<p>Alan adında MX kaydı yok ya da sorgulanamadı.</p>'}</div></div>
+  <div class="cols"><div class="panel"><h4>Teknolojiler</h4>${R.tech.length?kv(R.tech.map(x=>[x.name,(x.version+' '+x.note).trim()])):'<p>Tespit edilemedi.</p>'}</div>
+  <div class="panel"><h4>İzleyiciler</h4><p>${R.trackers.length?R.trackers.map(esc).join(', '):'İlk yanıtta izleyici görünmüyor.'}</p></div></div>
+  <div class="panel"><h4>Çerezler</h4>${R.cookies.length?`<table><thead><tr><th>Ad</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr></thead><tbody>${R.cookies.map(c=>`<tr><td class="m">${esc(c.name)}</td><td>${c.secure?'✓':'✗'}</td><td>${c.httponly?'✓':'✗'}</td><td>${esc(c.samesite)||'✗'}</td></tr>`).join('')}</tbody></table>`:'<p>İlk yanıtta çerez ayarlanmıyor.</p>'}</div>
+  <div class="panel"><h4>HTTP yanıt başlıkları</h4>${kv(R.headers)}</div>`;
+}
+function md(){
+  let m=`# Webbde raporu: ${R.url}\nGenel puan: ${R.total}/100 (Güvenlik ${R.scores[0]}, Mevzuat ${R.scores[1]}, Yapay zekâ ${R.scores[2]}, Kalite ${R.scores[3]})\n${R.pages.length} sayfa tarandı.\n\n`;
+  for(const x of R.findings.filter(x=>x.status!=='pass')){m+=`## ${x.title} (${ST[x.status]}, ${SEV[x.sev]})\n${x.detail}\n`+x.steps.map((s,i)=>`${i+1}. ${s}`).join('\n')+`\nReferans: ${x.refs}\n\n`}
+  return m}
+async function cp(btn,txt,label){await navigator.clipboard.writeText(txt);btn.textContent='Kopyalandı';setTimeout(()=>btn.textContent=label,1800)}
+$('#copy').onclick=e=>cp(e.target,md(),'Markdown kopyala');
+$('#cjson').onclick=e=>cp(e.target,JSON.stringify(R,null,2),'JSON kopyala');
 </script></body></html>
