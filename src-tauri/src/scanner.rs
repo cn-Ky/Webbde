@@ -5,9 +5,14 @@ use scraper::{Html, Selector};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const UA: &str = "Webbde/0.2 (pasif analiz)";
+// "Tüm site" modunda güvenlik tavanı: kontrolsüz sonsuz sitelerde (takvim, filtre vb.) tarama sonsuza gitmesin.
+const SITE_MAX: usize = 5000;
+const SEEN_MAX: usize = 100_000;
+const CORPUS_MAX: usize = 3_000_000;
 
 #[derive(Serialize)]
 pub struct Finding { cat: &'static str, title: String, status: &'static str, sev: &'static str, detail: String, refs: String, steps: Vec<String> }
@@ -27,6 +32,8 @@ pub struct Report {
     findings: Vec<Finding>, pages: Vec<PageInfo>, ai_view: AiView, bots: Vec<(String, bool)>,
     headers: Vec<(String, String)>, cookies: Vec<CookieInfo>, tech: Vec<Tech>, trackers: Vec<String>,
     tls: Option<Tls>, dns: Vec<(String, String)>,
+    // Tarama kapsamı: kuyrukta taranmadan kalan sayfa sayısı ve kullanıcı durdurdu mu
+    left: usize, cancelled: bool,
 }
 
 // ok: Some(true)=uygun, Some(false)=eksik, None=uyarı
@@ -290,6 +297,39 @@ async fn fetch(c: &Client, base: &Url, p: &str) -> Option<String> {
     let t = get_body(c, &base.join(p).ok()?).await?;
     if t.trim_start().starts_with('<') { None } else { Some(t) }
 }
+fn locs(xml: &str) -> Vec<String> {
+    let (mut out, mut rest) = (vec![], xml);
+    while let Some(i) = rest.find("<loc>") {
+        let after = &rest[i + 5..];
+        let Some(j) = after.find("</loc>") else { break };
+        out.push(after[..j].trim().trim_start_matches("<![CDATA[").trim_end_matches("]]>").replace("&amp;", "&"));
+        rest = &after[j + 6..];
+    }
+    out
+}
+// robots.txt'teki Sitemap: satırları ve /sitemap.xml; sitemap index dosyalarının alt haritalarını da okur.
+async fn sitemap_urls(c: &Client, base: &Url, robots: Option<&str>) -> Vec<Url> {
+    let mut todo: Vec<Url> = vec![];
+    for l in robots.unwrap_or("").lines() {
+        let l = l.trim();
+        if l.get(..8).map_or(false, |p| p.eq_ignore_ascii_case("sitemap:")) { if let Ok(u) = base.join(l[8..].trim()) { todo.push(u); } }
+    }
+    if let Ok(u) = base.join("/sitemap.xml") { if !todo.contains(&u) { todo.push(u); } }
+    let (mut out, mut n) = (vec![], 0);
+    while let Some(u) = todo.pop() {
+        n += 1; if n > 50 { break; }
+        let Some(x) = get_body(c, &u).await else { continue };
+        if !(x.contains("<urlset") || x.contains("<sitemapindex")) { continue; }
+        let idx = x.contains("<sitemapindex");
+        for l in locs(&x) {
+            let Ok(l) = Url::parse(&l) else { continue };
+            if l.host_str() != base.host_str() { continue; }
+            if idx { todo.push(l) } else { out.push(l) }
+        }
+        if out.len() > SEEN_MAX { break; }
+    }
+    out
+}
 async fn doh(c: &Client, name: &str, typ: &str) -> Vec<String> {
     let url = format!("https://cloudflare-dns.com/dns-query?name={name}&type={typ}");
     let Ok(r) = c.get(&url).header("accept", "application/dns-json").send().await else { return vec![] };
@@ -306,12 +346,13 @@ fn score(f: &[Finding], cat: &str) -> u32 {
     if t == 0.0 { 100 } else { (g / t * 100.0_f64).round() as u32 }
 }
 
-pub async fn run(input: String, depth: usize, prog: &(dyn Fn(String) + Send + Sync)) -> Result<Report, String> {
+// depth: 1 = yalnızca ana sayfa, N = en fazla N sayfa, 0 = bulunabilen tüm sayfalar (SITE_MAX tavanıyla).
+pub async fn run(input: String, depth: usize, cancel: Arc<AtomicBool>, prog: &(dyn Fn(String) + Send + Sync)) -> Result<Report, String> {
     let mut u = input.trim().to_string();
     if !u.contains("://") { u = format!("https://{u}"); }
     let parsed = Url::parse(&u).map_err(|_| "Geçersiz adres. Örnek: ornek.com".to_string())?;
     if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() { return Err("Yalnızca http ve https desteklenir.".into()); }
-    let depth = depth.clamp(1, 40);
+    let limit = if depth == 0 { SITE_MAX } else { depth.clamp(1, SITE_MAX) };
     let c = Client::builder().user_agent(UA).timeout(Duration::from_secs(15)).tls_info(true).build().map_err(|e| e.to_string())?;
 
     prog("Siteye bağlanılıyor".into());
@@ -359,7 +400,9 @@ pub async fn run(input: String, depth: usize, prog: &(dyn Fn(String) + Send + Sy
         add(&mut f, "ai", "med", if blocked.is_empty() { Some(true) } else { None }, "Yapay zekâ botlarına erişim", format!("Engellenen botlar: {}", blocked.join(", ")), "Robots Exclusion", &["Yapay zekâ araçlarında görünmek istiyorsanız ilgili `Disallow: /` satırlarını kaldırın.", "Bilinçli bir tercihse bu bir hata değildir."]);
     }
     add(&mut f, "ai", "low", Some(fetch(&c, &fin, "/llms.txt").await.is_some()), "llms.txt", "Yapay zekâ için site özeti dosyası yok.", "llmstxt.org", &["Kök dizine Markdown biçiminde `llms.txt` ekleyin: başlık, kısa özet, önemli sayfa bağlantıları."]);
-    let sm = robots.as_deref().map_or(false, |r| r.to_lowercase().contains("sitemap:")) || fetch(&c, &fin, "/sitemap.xml").await.is_some();
+    let sm_urls: Vec<Url> = if limit > 1 { prog("Site haritası okunuyor".into()); sitemap_urls(&c, &fin, robots.as_deref()).await } else { vec![] };
+    let sm = robots.as_deref().map_or(false, |r| r.to_lowercase().contains("sitemap:")) || !sm_urls.is_empty()
+        || (limit == 1 && match fin.join("/sitemap.xml").ok() { Some(u) => get_body(&c, &u).await.map_or(false, |x| x.contains("<urlset") || x.contains("<sitemapindex")), None => false });
     add(&mut f, "ai", "med", Some(sm), "Site haritası", "sitemap.xml bulunamadı.", "Sitemaps", &["Sitenizin sayfalarını listeleyen `sitemap.xml` üretin."]);
     let sec = fetch(&c, &fin, "/.well-known/security.txt").await.map_or(false, |t| t.to_lowercase().contains("contact:"));
     add(&mut f, "sec", "low", Some(sec), "security.txt", "Güvenlik açığı bildirimi için iletişim dosyası yok.", "RFC 9116", &["`/.well-known/security.txt` oluşturup `Contact: mailto:guvenlik@alanadiniz.com` ve `Expires:` satırlarını ekleyin."]);
@@ -380,14 +423,19 @@ pub async fn run(input: String, depth: usize, prog: &(dyn Fn(String) + Send + Sy
     };
     push_page(&mut pages, &fin, status, ms, body.len(), Some(&f0));
     let enqueue = |fx: &Facts, q: &mut VecDeque<Url>, seen: &mut HashSet<String>| {
-        for (_, a) in &fx.anchors { if a.host_str() == fin.host_str() && crawlable(a) && seen.len() < 400 && seen.insert(key(a)) { q.push_back(a.clone()); } }
+        for (_, a) in &fx.anchors { if a.host_str() == fin.host_str() && crawlable(a) && seen.len() < SEEN_MAX && seen.insert(key(a)) { q.push_back(a.clone()); } }
     };
     enqueue(&f0, &mut q, &mut seen);
     anchors_all.extend(f0.anchors.iter().cloned());
-    while pages.len() < depth {
+    // Site haritasındaki sayfalar da kuyruğa girer (ana sayfadan bağlantısı olmayan sayfaları yakalar)
+    for a in &sm_urls { if a.host_str() == fin.host_str() && crawlable(a) && seen.len() < SEEN_MAX && seen.insert(key(a)) { q.push_back(a.clone()); } }
+    let mut was_cancelled = false;
+    while pages.len() < limit {
+        if cancel.load(Ordering::Relaxed) { was_cancelled = true; prog("Tarama durduruldu; o ana kadarki sonuçlar raporlanıyor".into()); break; }
         let Some(u) = q.pop_front() else { break };
         if star.iter().any(|r| u.path().starts_with(r.as_str())) { continue; }
-        prog(format!("Sayfa {}/{} taranıyor: {}", pages.len() + 1, depth, u.path()));
+        if depth == 0 { prog(format!("Sayfa {} taranıyor ({} sırada): {}", pages.len() + 1, q.len() + 1, u.path())); }
+        else { prog(format!("Sayfa {}/{} taranıyor: {}", pages.len() + 1, limit, u.path())); }
         tokio::time::sleep(Duration::from_millis(250)).await;
         let t0 = Instant::now();
         match c.get(u.clone()).send().await {
@@ -399,7 +447,7 @@ pub async fn run(input: String, depth: usize, prog: &(dyn Fn(String) + Send + Sy
                 if html {
                     let fx = if b.is_empty() { None } else { Some(facts(&b, &u)) };
                     push_page(&mut pages, &u, st, ms, b.len(), fx.as_ref());
-                    if let Some(x) = &fx { enqueue(x, &mut q, &mut seen); anchors_all.extend(x.anchors.iter().cloned()); corpus.push_str(&clip(&b.to_lowercase(), 100_000)); }
+                    if let Some(x) = &fx { enqueue(x, &mut q, &mut seen); anchors_all.extend(x.anchors.iter().cloned()); if corpus.len() < CORPUS_MAX { corpus.push_str(&clip(&b.to_lowercase(), 100_000)); } }
                 }
             }
             Err(_) => push_page(&mut pages, &u, 0, 0, 0, None),
@@ -469,5 +517,7 @@ pub async fn run(input: String, depth: usize, prog: &(dyn Fn(String) + Send + Sy
     let total = (sc[0] * 40 + sc[1] * 25 + sc[2] * 20 + sc[3] * 15) / 100;
     let mut headers: Vec<(String, String)> = h.iter().filter(|(k, _)| k.as_str() != "set-cookie").take(40).map(|(k, v)| (k.to_string(), clip(v.to_str().unwrap_or("?"), 200))).collect();
     headers.sort();
-    Ok(Report { url: fin.to_string(), status, ms, bytes: body.len(), scores: sc, total, findings: f, pages, ai_view: ho.ai, bots, headers, cookies, tech: ho.tech, trackers: ho.trackers, tls, dns })
+    let left = q.iter().filter(|u| !star.iter().any(|r| u.path().starts_with(r.as_str()))).count();
+    if left > 0 && !was_cancelled { prog(format!("{left} sayfa tarama sınırı nedeniyle taranmadı")); }
+    Ok(Report { url: fin.to_string(), status, ms, bytes: body.len(), scores: sc, total, findings: f, pages, ai_view: ho.ai, bots, headers, cookies, tech: ho.tech, trackers: ho.trackers, tls, dns, left, cancelled: was_cancelled })
 }
